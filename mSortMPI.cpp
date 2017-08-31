@@ -26,6 +26,7 @@
 #include <chrono>
 #include <ctime>
 
+using namespace std;
 
 int main( int argc, char *argv[] )
 {
@@ -50,44 +51,66 @@ int main( int argc, char *argv[] )
 
     MPI_Comm_rank(MPI_COMM_WORLD, &my_rank); /* Se le pide al comunicador MPI_COMM_WORL que devuelva en 
                                                 la variable my_rank la identificacion del proceso "llamador" 
-                                                la identificacion es un numero de 0 a p-1 */                          
+                                                la identificacion es un numero de 0 a p-1 */                     
        
-       
-    
+    MPI_Comm rcom, tcom;
+    MPI_Group original;
+
+    MPI_Comm_group(MPI_COMM_WORLD, &original);
+    MPI_Comm_create(MPI_COMM_WORLD, original, &rcom);
+    MPI_Comm_create(MPI_COMM_WORLD, original, &tcom);
+
     if (my_rank == 0) {   /* LO QUE SIGUE LO REALIZA UNICAMENTE EL PROCESO 0 (PROCESO RAIZ o PRINCIPAL) */
-      std::cout << "Digite el tamano de la lista\n" >> endl;
+      std::cout << "Digite el tamano de la lista\n" << endl;
       std::cin >> n;
     
-      std::cout << "Digite el limite de valores aleatorios en la lista >> endl;
+      std::cout << "Digite el limite de valores aleatorios en la lista" << endl;
 	    std::cin >> m;
     
       lista = (int *)malloc(n*sizeof(int));
-	    if(lista==NULL){
-		    cout << "Error al asignar memoria a la lista" << endl;
+      if(lista==NULL){
+		    std::cout << "Error al asignar memoria a la lista" << endl;
 		    return 0; 
-	    }
+      }
       Genera_vector(lista, n, m);
+
+	for(int i=0; i < n; i++) {
+        std::cout << lista[i] << " ";
+  	}
       
       r = n % p;
       t = (n - r)/p;
-      
-      MPI_Scatter(lista, t + 1, MPI_INT, lista_local, t + 1, MPI_INT, 0, MPI_COMM_WORLD);
-      MPI_Scatter(lista, t, MPI_INT, lista_local, t, MPI_INT, 0, MPI_COMM_WORLD);
-      
+    }
+	         
       MPI_Bcast(&t, 1, MPI_INT, 0, MPI_COMM_WORLD);
-      MPI_Bcast(&r, 1, MPI_INT, 0, MPI_COMM_WORLD);
-   }
-   
-   cout << "Yo soy el proceso " << my_rank;
+   	MPI_Bcast(&r, 1, MPI_INT, 0, MPI_COMM_WORLD);
+      lista_local = (int *)malloc((t+1)*sizeof(int));
+
+      MPI_Scatter(lista, t + 1, MPI_INT, lista_local, t + 1, MPI_INT, 0, rcom);
+      MPI_Scatter(lista, t, MPI_INT, lista_local, t, MPI_INT, 0, tcom);
+
+
+   std::cout << "Yo soy el proceso " << my_rank << " ";
    for(int i=0; i <= t+1; i++) {
-        cout << lista_local[i] << "\n" << endl;
+        std::cout << lista_local[i] << "\n" << endl;
    }
    
+    if (my_rank == 0) { 
+	free(lista);
+	
+	}
+     free(lista_local);
+
+   MPI_Finalize();
+   
+   return 0;
 }
 
 void Genera_vector(int lista[], int n,  int m)
 {
       int i;
-      for (i = 0; i < n; i++)
-        lista[i]= 0 + rand()%(m+1-0);                
+      for (i = 0; i < n; i++) {
+        //lista[i]= 0 + rand()%(m+1-0); 
+	lista[i]= i;                 
+      }
 }
