@@ -30,7 +30,8 @@ using namespace std;
 
 int main( int argc, char *argv[] )
 {
-    int*  lista;        /* Lista que debe ser ordenada*/
+    int* lista;        /* Lista que debe ser ordenada*/
+    int* lista_cantidadMenor;
     int* lista_local;
     int  n;            /*  Dimension de los 2 vectores dada por el usuario */
     int m;	       /*  Limite de numeros aleatorios de la lista */ 		
@@ -38,27 +39,21 @@ int main( int argc, char *argv[] )
     int  my_rank;      /*  Identificacion de cada proceso*/
     int r;
     int t;
+
+    int cantidadMenorTag = 11011;
     
     void Genera_vector(int lista[], int n, int m);   /* Genera valores aleatorios para n vector de enteros*/
     
-    MPI_Init(&argc, &argv); /* Inicializacion del ambiente para MPI.
-                            En C MPI_Init se puede usar para pasar los argumentos de la linea de comando
-                            a todos los procesos, aunque no es requerido, depende de la implementacion */
+    MPI_Init(&argc, &argv); /* Inicializacion del ambiente para MPI. */
 
-    MPI_Comm_size(MPI_COMM_WORLD, &p); /* Se le pide al comunicador MPI_COMM_WORLD que 
-                                          almacene en p el numero de procesos de ese comunicador.
-                                          O sea para este caso, p indicara el num total de procesos que corren*/
+    MPI_Comm_size(MPI_COMM_WORLD, &p); //Cantidad de procesos inicializados. 
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank); /* Se le pide al comunicador MPI_COMM_WORL que devuelva en 
-                                                la variable my_rank la identificacion del proceso "llamador" 
-                                                la identificacion es un numero de 0 a p-1 */                     
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank); //El rango del proceso "local".              
        
-    MPI_Comm rcom, tcom;
-    MPI_Group original;
+    MPI_Comm balancer_comm; //Este comunicador sirve entre procesos que tengan el mísmo número de items. 
+    MPI_Group original_group;
 
-    MPI_Comm_group(MPI_COMM_WORLD, &original);
-    MPI_Comm_create(MPI_COMM_WORLD, original, &rcom);
-    MPI_Comm_create(MPI_COMM_WORLD, original, &tcom);
+    MPI_Comm_group(MPI_COMM_WORLD, &original_group); //
 
     if (my_rank == 0) {   /* LO QUE SIGUE LO REALIZA UNICAMENTE EL PROCESO 0 (PROCESO RAIZ o PRINCIPAL) */
       std::cout << "Digite el tamano de la lista\n" << endl;
@@ -74,34 +69,63 @@ int main( int argc, char *argv[] )
       }
       Genera_vector(lista, n, m);
 
-	for(int i=0; i < n; i++) {
-        std::cout << lista[i] << " ";
-  	}
+    	for(int i=0; i < n; i++) {
+        std::cout <<"parent WORLD: " << lista[i] << " ";
+      }
       
-      r = n % p;
-      t = (n - r)/p;
+      r = n % p;  //Restante de la division de items en la lista entre los procesos. 
+                  //También indica los r primero procesos a recibir t+1 items.  
+      t = (n - r)/p;  //Cuantos items por proceso para que tengan el mismo número de procesos (no contando los restantes).
+
+      lista_cantidadMenor = lista+r;
+
+      if(r != 0){
+      MPI_Send (lista_cantidadMenor,n-r,MPI_INT,r,cantidadMenorTag, MPI_COMM_WORLD);  //Mandamos la lista de cantidades menores al pocesador que se convertira
+                                                                                      //en la raiz de su comunicador que se crea al hacer el split después.
+      std::cout << "0 is done sending lista_cantidadMenor" << std::endl; 
+      }
+      free(lista_cantidadMenor);
     }
 	         
-      MPI_Bcast(&t, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&t, 1, MPI_INT, 0, MPI_COMM_WORLD);
    	MPI_Bcast(&r, 1, MPI_INT, 0, MPI_COMM_WORLD);
-      lista_local = (int *)malloc((t+1)*sizeof(int));
+    MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-      MPI_Scatter(lista, t + 1, MPI_INT, lista_local, t + 1, MPI_INT, 0, rcom);
-      MPI_Scatter(lista, t, MPI_INT, lista_local, t, MPI_INT, 0, tcom);
+    if(my_rank == r-1)//Soy el proceso raíz del segundo subgrupo de comm. 
+    {
+      MPI_Recv(lista,n-r,MPI_INT,r-1,cantidadMenorTag,MPI_COMM_WORLD,MPI_STATUS_IGNORE); //Recibir la lista de cantidades menores
+    }
+    
+
+    //Vamos a dividir los procesos en dos sub comunicadores. El de color 1 que recibe t+1 items en sus listas. 
+    //El de color 2 que recibe t items. Esto para garantizar una manera de recibir cualquier cantidad de n de items. 
+
+    int color = my_rank < r ? 1 : 0; //Esto es para calcular el color (identificar procesos de un comunicador) del proceso.
+
+    //Aquí es donde se reparte los procesos según color y se identifican con el COMM handler balancer_comm. 
+    MPI_Comm_split(MPI_COMM_WORLD, color, my_rank, &balancer_comm);
+
+    //Ahora, dependiendo del color, la lista será del tamaño t+1, o t.
+    lista_local = (int *)malloc((t+color)*sizeof(int));
+
+    if(r > 0){
+      //Vamos a repartir la lista. Para los procesos en COMM_WORLD con rank menor a r, esto reciben t+1, para los otro t. 
+      MPI_Scatter(lista, t + 1, MPI_INT, lista_local, t + 1, MPI_INT, 0, balancer_comm);
+      MPI_Scatter(lista, t, MPI_INT, lista_local, t, MPI_INT, r-1, balancer_comm);
+    }else{
+      lista_local = lista;
+    }
 
 
-   std::cout << "Yo soy el proceso " << my_rank << " ";
-   for(int i=0; i <= t+1; i++) {
-        std::cout << lista_local[i] << "\n" << endl;
-   }
-   
-    if (my_rank == 0) { 
-	free(lista);
-	
-	}
-     free(lista_local);
+  std::cout << "Yo soy el proceso " << my_rank << " del comunicador: "<< balancer_comm << " first: " << lista_local[0] << std::endl;
+  
+  if(my_rank == 0 || my_rank == r-1){
+	   free(lista);
+  }
+  
+  free(lista_local);
 
-   MPI_Finalize();
+  MPI_Finalize();
    
    return 0;
 }
@@ -111,6 +135,6 @@ void Genera_vector(int lista[], int n,  int m)
       int i;
       for (i = 0; i < n; i++) {
         //lista[i]= 0 + rand()%(m+1-0); 
-	lista[i]= i;                 
+	         lista[i]= i;                 
       }
 }
