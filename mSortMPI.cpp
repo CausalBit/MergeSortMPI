@@ -149,12 +149,13 @@ int main( int argc, char *argv[] )
     if(r > 0){
       //Vamos a repartir la lista. Para los procesos en COMM_WORLD con rank menor a r, esto reciben t+1, para los otro t. 
        // MPI_Scatter (&sendbuf,sendcnt,sendtype,&recvbuf,recvcnt,recvtype,root,comm)
+
+        int size_to_scatter = color == 1 ? t+1: t;
       
-        MPI_Scatter(lista, t + 1, MPI_INT, lista_local, t + 1, MPI_INT, 0, balancer_comm);
+       // MPI_Scatter(lista, t + 1, MPI_INT, lista_local, t + 1, MPI_INT, 0, balancer_comm);
       
     
-       
-      MPI_Scatter(lista, t, MPI_INT, lista_local, t, MPI_INT, 0, balancer_comm);
+        MPI_Scatter(lista, size_to_scatter, MPI_INT, lista_local, size_to_scatter, MPI_INT, 0, balancer_comm);
 
       
     }else{
