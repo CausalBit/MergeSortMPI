@@ -273,3 +273,22 @@ int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2) {
     }
     return result;
 }
+
+/*
+int main(int argc, char** argv) {
+	int prueba[10] = {5,6,2,1,4,2,10,6,9,8};
+	for(int i=0; i<10; i++) {
+		printf("%d	,",prueba[i]);
+	}	
+	printf("\nMergerSort\n");
+	
+	int* resultado = (int *) malloc(10*sizeof(int));
+	resultado = mergeSort(prueba, 10);
+	
+	for(int i=0; i<10; i++) {
+		printf("%d	,",resultado[i]);
+	}	
+	free(resultado);
+	return 0;
+}
+*/
