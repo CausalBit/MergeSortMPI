@@ -56,8 +56,13 @@ int main( int argc, char *argv[] )
     MPI_Comm_group(MPI_COMM_WORLD, &original_group); //
 
     if (my_rank == 0) {   /* LO QUE SIGUE LO REALIZA UNICAMENTE EL PROCESO 0 (PROCESO RAIZ o PRINCIPAL) */
-      std::cout << "Digite el tamano de la lista\n" << endl;
-      std::cin >> n;
+
+      n = 0;
+      while( n <= 0 ) //Nunca se puede seguir si n no es mayor a 0. 
+      {
+        std::cout << "Digite el tamano de la lista, que sea mayor a 0." << endl;
+        std::cin >> n;
+      }
     
       std::cout << "Digite el limite de valores aleatorios en la lista" << endl;
 	    std::cin >> m;
@@ -68,28 +73,29 @@ int main( int argc, char *argv[] )
 		    return 0; 
       }
       Genera_vector(lista, n, m);
-
+      /*
     	for(int i=0; i < n; i++) {
         std::cout <<"parent WORLD: " << lista[i] << " ";
-      }
+      }*/
+      std::cout<<"numero de procesos " << p << std::endl;
       
       r = n % p;  //Restante de la division de items en la lista entre los procesos. 
                   //También indica los r primero procesos a recibir t+1 items.  
-      t = (n - r)/p;  //Cuantos items por proceso para que tengan el mismo número de procesos (no contando los restantes).
-      int num_elementos_to_send = n - (2*r);
-
-      lista_cantidadMenor = lista+2*r;
-
-      for(int i = 0; i < num_elementos_to_send; i++){
-        std::cout <<"tesnting lista cantidad menor: " << lista_cantidadMenor[i] << std::endl;
-      }
-
+      r = r == n ? 0: r;
+      t = n < p ? 1 : (n - r)/p;  //Cuantos items por proceso para que tengan el mismo número de procesos (no contando los restantes).
       if(r != 0){
-      std::cout << "About to send lista_cantidadMenor to process " << r << std::endl; 
-      //MPI_Send (&buf,count,datatype,dest,tag,comm) 
-      MPI_Send (lista_cantidadMenor,num_elementos_to_send,MPI_INT,r,cantidadMenorTag, MPI_COMM_WORLD);  //Mandamos la lista de cantidades menores al pocesador que se convertira
-                                                                                      //en la raiz de su comunicador que se crea al hacer el split después.
-      std::cout << "0 is done sending lista_cantidadMenor" << std::endl; 
+        int elementos_r = ((t+1)*r);
+        int num_elementos_to_send = n - elementos_r;
+        lista_cantidadMenor = lista+elementos_r;
+
+        for(int i = 0; i < num_elementos_to_send; i++){
+          std::cout <<"testing lista cantidad menor: " << lista_cantidadMenor[i] << std::endl;
+        }
+        std::cout << "About to send lista_cantidadMenor to process " << r << std::endl; 
+        //MPI_Send (&buf,count,datatype,dest,tag,comm) 
+        MPI_Send (lista_cantidadMenor,num_elementos_to_send,MPI_INT,r,cantidadMenorTag, MPI_COMM_WORLD);  //Mandamos la lista de cantidades menores al pocesador que se convertira
+                                                                                        //en la raiz de su comunicador que se crea al hacer el split después.
+        std::cout << "0 is done sending lista_cantidadMenor" << std::endl; 
       }
 
       //free(lista_cantidadMenor);
@@ -105,10 +111,10 @@ int main( int argc, char *argv[] )
 
 
 
-    if(my_rank == r)//Soy el proceso raíz del segundo subgrupo de comm. 
+    if(my_rank == r && r != 0 )//Soy el proceso raíz del segundo subgrupo de comm. 
     {
       std::cout << "preparing list with n = " << n << std::endl;
-      int num_elementos_to_rcv = n - 2*r;
+      int num_elementos_to_rcv = n - ((t+1)*r);
 
       lista = (int *)malloc(num_elementos_to_rcv*sizeof(int));
           if(lista==NULL){
@@ -117,9 +123,9 @@ int main( int argc, char *argv[] )
           }
       std::cout << my_rank <<  " is bout to receive " << std::endl;
       //MPI_Recv (&buf,count,datatype,source,tag,comm,&status) 
-      MPI_Recv(lista,n-2*r,MPI_INT,0,cantidadMenorTag,MPI_COMM_WORLD,MPI_STATUS_IGNORE); //Recibir la lista de cantidades menores
+      MPI_Recv(lista,num_elementos_to_rcv ,MPI_INT,0,cantidadMenorTag,MPI_COMM_WORLD,MPI_STATUS_IGNORE); //Recibir la lista de cantidades menores
       std::cout << "Done receiving, starting testing: ";
-      for(int i = 0; i < n - 2*r; i++){
+      for(int i = 0; i < num_elementos_to_rcv; i++){
         std::cout << "--" << lista[i] << std::endl;
       } 
       std::cout << "la lista está terminada" <<std::endl;
@@ -133,20 +139,20 @@ int main( int argc, char *argv[] )
    // std::cout << "Starting to calculate color for "<< my_rank <<std::endl; 
 
     int color = my_rank < r ? 1 : 0; //Esto es para calcular el color (identificar procesos de un comunicador) del proceso.
-    std::cout << " pro "<< my_rank << "with color "<< color << std::endl; 
+    //std::cout << " pro "<< my_rank << "with color "<< color << std::endl; 
     MPI_Barrier(MPI_COMM_WORLD);
 
     //Aquí es donde se reparte los procesos según color y se identifican con el COMM handler balancer_comm. 
     MPI_Comm_split(MPI_COMM_WORLD, color, my_rank, &balancer_comm);
-    std::cout << "After Splitiing about to allocate "<< my_rank << " with balancer: "<< balancer_comm <<std::endl; 
+    //std::cout << "After Splitiing about to allocate "<< my_rank << " with balancer: "<< balancer_comm <<std::endl; 
 
     //Ahora, dependiendo del color, la lista será del tamaño t+1, o t.
     lista_local = (int *)malloc((t+color)*sizeof(int));
-     std::cout << "Done allocating "<< my_rank <<std::endl; 
+     //std::cout << "Done allocating "<< my_rank <<std::endl; 
 
      MPI_Barrier(MPI_COMM_WORLD);
 
-    if(r > 0){
+   
       //Vamos a repartir la lista. Para los procesos en COMM_WORLD con rank menor a r, esto reciben t+1, para los otro t. 
        // MPI_Scatter (&sendbuf,sendcnt,sendtype,&recvbuf,recvcnt,recvtype,root,comm)
 
@@ -157,13 +163,11 @@ int main( int argc, char *argv[] )
     
         MPI_Scatter(lista, size_to_scatter, MPI_INT, lista_local, size_to_scatter, MPI_INT, 0, balancer_comm);
 
-      
-    }else{
-      lista_local = lista;
-    }
 
-MPI_Barrier(MPI_COMM_WORLD);
-  std::cout << "Yo soy el proceso " << my_rank <<  " first: " << lista_local[0] << std::endl;
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  //std::cout << "Yo soy el proceso " << my_rank <<  " first: " << lista_local[0] << std::endl;
+  std::cout << lista_local[0] << std::endl;
   
   if(my_rank == 0 || my_rank == r){
 	   free(lista);
