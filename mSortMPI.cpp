@@ -155,19 +155,18 @@ int main( int argc, char *argv[] )
     //Ahora, dependiendo del color, la lista será del tamaño t+1, o t.
     lista_local = (int *)malloc((t+color)*sizeof(int));
      //std::cout << "Done allocating "<< my_rank <<std::endl; 
-
-     MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
 
    
       //Vamos a repartir la lista. Para los procesos en COMM_WORLD con rank menor a r, esto reciben t+1, para los otro t. 
        // MPI_Scatter (&sendbuf,sendcnt,sendtype,&recvbuf,recvcnt,recvtype,root,comm)
 
-        int size_to_scatter = color == 1 ? t+1: t;
+  int size_to_scatter = color == 1 ? t+1: t;
       
        // MPI_Scatter(lista, t + 1, MPI_INT, lista_local, t + 1, MPI_INT, 0, balancer_comm);
       
     
-        MPI_Scatter(lista, size_to_scatter, MPI_INT, lista_local, size_to_scatter, MPI_INT, 0, balancer_comm);
+  MPI_Scatter(lista, size_to_scatter, MPI_INT, lista_local, size_to_scatter, MPI_INT, 0, balancer_comm);
 
 
   MPI_Barrier(MPI_COMM_WORLD);
@@ -175,7 +174,7 @@ int main( int argc, char *argv[] )
   //**  
   int pro_id = my_rank + 1;
   int numero_nodos = n>=p? p: n;
-  int working = 1;
+  bool working = true;
   int tamanio_lista = size_to_scatter;
   int tamanio_tag = 11110;
   int lista_recibir_tag = 77777;
@@ -190,21 +189,28 @@ int main( int argc, char *argv[] )
     lista_unida[i] = lista_local[i];
   }
 
-    int team = 2; //Hay vida pues!
-      //Aquí es donde se reparte los procesos según color y se identifican con el COMM handler balancer_comm. 
-    MPI_Comm_split(MPI_COMM_WORLD, team, my_rank, &alive_comm);
-    //std::cout << " pro "<< my_rank << "with color "<< color << std::endl; 
+ 
+    std::stringstream sstx;
+    sstx << ">>>> " << my_rank << " :";
+    
+    for(int x = 0; x < tamanio_lista; x++){
+      sstx <<lista_unida[x] << " , ";
+    }
+    sstx << std::endl;
+    //result = sstm.str();
+    std::cout << sstx.str();
+  
 
-    int distance = 1;
+  int distance = 1;
  
 
-  while(working != 0){
+  while(working){
 
-    MPI_Barrier(MPI_COMM_WORLD);
+    //MPI_Barrier(MPI_COMM_WORLD);
 
-    if(pro_id%2 == 0 && pro_id > -1 )
+    if(pro_id%2 == 0)
     {
-      team = 0;
+      
       //Enviar mi lista al proceso previo: my_rank - 1;
       std::stringstream ssout;
       ssout << "SEND soy rank: "<<my_rank<<" pro_id: "<<pro_id<<" tamanio_lista "<<tamanio_lista<< " total nodos: "<<numero_nodos <<std::endl;
@@ -216,12 +222,12 @@ int main( int argc, char *argv[] )
       //Mandar lista :D
       MPI_Send(lista_unida,tamanio_lista,MPI_INT,my_rank-distance,lista_recibir_tag, MPI_COMM_WORLD);
 
-      //working = false;
+      working = false;
       //MPI_Comm_free(&alive_comm);
-      pro_id = -1;
+      //pro_id = -1;
    
-    }else if( pro_id > -1 ){
-       team = 1;
+    }else{
+       
 
       //Recibir la lista del proceso siguiente si es que existe:
       //Si my_rank + 2 <= numero_nodo.
@@ -233,14 +239,24 @@ int main( int argc, char *argv[] )
         int tamanio_lista_recibir = 0;
         //MPI_Recv (&buf,count,datatype,source,tag,comm,&status) 
         MPI_Recv(&tamanio_lista_recibir,1,MPI_INT,my_rank+distance,tamanio_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-              std::stringstream ssout;
-        tamanio_lista += tamanio_lista_recibir;
-      ssout << "RECV soy rank: "<<my_rank<<" pro_id: "<<pro_id<<" tamanio_lista "<<tamanio_lista<<" tamaio a racibir "<< tamanio_lista_recibir << " total nodos: "<<numero_nodos <<std::endl;
-      std::cout << ssout.str();
-        //Recibir la lista
-        MPI_Recv(lista_unida+tamanio_lista_recibir, tamanio_lista_recibir, MPI_INT, my_rank+distance, lista_recibir_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-        //MERGE IT!!!
 
+        int * lista_a_recibir = (int *)malloc(tamanio_lista_recibir*sizeof(int));
+        if(lista_a_recibir==NULL){
+          std::cout << "Error al asignar memoria a la lista" << endl;
+          return 0; 
+        }
+        
+        std::stringstream ssout;
+        //tamanio_lista += tamanio_lista_recibir;
+        ssout << "RECV soy rank: "<<my_rank<<" pro_id: "<<pro_id<<" tamanio_lista "<<tamanio_lista<<" tamaio a racibir "<< tamanio_lista_recibir << " total nodos: "<<numero_nodos <<std::endl;
+         std::cout << ssout.str();
+        //Recibir la lista
+        MPI_Recv(lista_a_recibir, tamanio_lista_recibir, MPI_INT, my_rank+distance, lista_recibir_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //MERGE IT!!!
+        for(int x = 0; x < tamanio_lista_recibir; x++){
+          lista_unida[tamanio_lista+x] = lista_a_recibir[x];
+        }
+        free(lista_a_recibir);
 
       }
 
@@ -248,26 +264,16 @@ int main( int argc, char *argv[] )
       pro_id = (pro_id +1 )/ 2;
       numero_nodos = numero_nodos % 2 == 0 ? numero_nodos/2 :  (numero_nodos+1 ) / 2;
       distance <<= 1;
-      //working = numero_nodos - 1; //Solo trabajar si hay más de un nodo. 
-      if(numero_nodos==1){
-        working = 1;
-      }
+      working = 1 < numero_nodos;
 
       
     }
    
 
-      MPI_Bcast(&working, 1, MPI_INT, 0, MPI_COMM_WORLD);
       
     
   }
   std::cout << "I AM OUT!" <<std::endl;
-  MPI_Comm_free(&alive_comm);
-
-  //**
-
-  //std::cout << "Yo soy el proceso " << my_rank <<  " first: " << lista_local[0] << std::endl;
-  std::cout << lista_local[0] << std::endl;
   
   if(my_rank == 0 || my_rank == r){
 	   free(lista);
@@ -275,7 +281,7 @@ int main( int argc, char *argv[] )
 
   if(my_rank == 0){
     std::stringstream sstm;
-    sstm << "-";
+    sstm << "*";
     
     for(int x = 0; x < n; x++){
       sstm <<lista_unida[x] << " , ";
@@ -296,47 +302,8 @@ void Genera_vector(int lista[], int n,  int m)
       int i;
       for (i = 0; i < n; i++) {
         //lista[i]= 0 + rand()%(m+1-0); 
-	         lista[i]= i;                 
+	         lista[i]= 7;                 
       }
-}
-
-
-int* mergeSort(int lista[], int numElem) 
-{
-	int mitad=0;
-	int modulo=0;
-	int m1=0;
-	int recorridoL1 = 0;
-	int recorridoL2 = 0;
-	if(numElem==1) {
-		return lista;	
-	}
-	else {
-		mitad = numElem/2;
-		modulo = numElem%2;
-		if(modulo==0)
-			m1=  mitad;
-		else 
-			m1=  mitad+1;
-			
-		int mitad1[mitad];
-		int mitad2[m1];
-		
-		for(int j=0; j<numElem; j++) {
-			if(j<mitad) { 
-				mitad1[recorridoL1] = lista[j];
-				recorridoL1++;
-			}
-			else {
-				mitad2[recorridoL2] = lista[j];
-				recorridoL2++;
-			}
-		}
-		if(modulo==0)
-			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad),mitad,mitad);
-		else
-			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad+1),mitad,mitad+1);
-	}
 }
 
 int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2) {
@@ -383,6 +350,47 @@ int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2) {
     }
     return result;
 }
+
+
+int* mergeSort(int lista[], int numElem) 
+{
+	int mitad=0;
+	int modulo=0;
+	int m1=0;
+	int recorridoL1 = 0;
+	int recorridoL2 = 0;
+	if(numElem==1) {
+		return lista;	
+	}
+	else {
+		mitad = numElem/2;
+		modulo = numElem%2;
+		if(modulo==0)
+			m1=  mitad;
+		else 
+			m1=  mitad+1;
+			
+		int mitad1[mitad];
+		int mitad2[m1];
+		
+		for(int j=0; j<numElem; j++) {
+			if(j<mitad) { 
+				mitad1[recorridoL1] = lista[j];
+				recorridoL1++;
+			}
+			else {
+				mitad2[recorridoL2] = lista[j];
+				recorridoL2++;
+			}
+		}
+		if(modulo==0)
+			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad),mitad,mitad);
+		else
+			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad+1),mitad,mitad+1);
+	}
+}
+
+
 
 /*
 int main(int argc, char** argv) {
