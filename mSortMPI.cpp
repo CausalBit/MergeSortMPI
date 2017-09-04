@@ -195,11 +195,12 @@ int main( int argc, char *argv[] )
     MPI_Comm_split(MPI_COMM_WORLD, team, my_rank, &alive_comm);
     //std::cout << " pro "<< my_rank << "with color "<< color << std::endl; 
 
+    int distance = 1;
  
 
   while(working != 0){
 
-    
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if(pro_id%2 == 0 && pro_id > -1 )
     {
@@ -211,9 +212,9 @@ int main( int argc, char *argv[] )
 
       //Primero mandar el tamaño de la lista. 
       //MPI_Send (&buf,count,datatype,dest,tag,comm) 
-      MPI_Send(&tamanio_lista,1,MPI_INT,my_rank-1,tamanio_tag+my_rank-1, MPI_COMM_WORLD);
+      MPI_Send(&tamanio_lista,1,MPI_INT,my_rank-distance,tamanio_tag, MPI_COMM_WORLD);
       //Mandar lista :D
-      MPI_Send(lista_unida,tamanio_lista,MPI_INT,my_rank-1,lista_recibir_tag+my_rank-1, MPI_COMM_WORLD);
+      MPI_Send(lista_unida,tamanio_lista,MPI_INT,my_rank-distance,lista_recibir_tag, MPI_COMM_WORLD);
 
       //working = false;
       //MPI_Comm_free(&alive_comm);
@@ -231,13 +232,13 @@ int main( int argc, char *argv[] )
         //Primero recibir el tamaños de la lista a recibir. 
         int tamanio_lista_recibir = 0;
         //MPI_Recv (&buf,count,datatype,source,tag,comm,&status) 
-        MPI_Recv(&tamanio_lista_recibir,1,MPI_INT,my_rank+1,tamanio_tag+my_rank,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        MPI_Recv(&tamanio_lista_recibir,1,MPI_INT,my_rank+distance,tamanio_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
               std::stringstream ssout;
         tamanio_lista += tamanio_lista_recibir;
       ssout << "RECV soy rank: "<<my_rank<<" pro_id: "<<pro_id<<" tamanio_lista "<<tamanio_lista<<" tamaio a racibir "<< tamanio_lista_recibir << " total nodos: "<<numero_nodos <<std::endl;
       std::cout << ssout.str();
         //Recibir la lista
-        MPI_Recv(lista_unida+tamanio_lista_recibir, tamanio_lista_recibir, MPI_INT, my_rank+1, lista_recibir_tag+my_rank,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        MPI_Recv(lista_unida+tamanio_lista_recibir, tamanio_lista_recibir, MPI_INT, my_rank+distance, lista_recibir_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
         //MERGE IT!!!
 
 
@@ -246,6 +247,7 @@ int main( int argc, char *argv[] )
       //Para todos los impares. 
       pro_id = (pro_id +1 )/ 2;
       numero_nodos = numero_nodos % 2 == 0 ? numero_nodos/2 :  (numero_nodos+1 ) / 2;
+      distance <<= 1;
       //working = numero_nodos - 1; //Solo trabajar si hay más de un nodo. 
       if(numero_nodos==1){
         working = 1;
@@ -256,7 +258,7 @@ int main( int argc, char *argv[] )
    
 
       MPI_Bcast(&working, 1, MPI_INT, 0, MPI_COMM_WORLD);
-      MPI_Barrier(MPI_COMM_WORLD);
+      
     
   }
   std::cout << "I AM OUT!" <<std::endl;
