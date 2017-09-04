@@ -180,33 +180,34 @@ int main( int argc, char *argv[] )
   int lista_recibir_tag = 77777;
 
   //Merge-Sort la lista local. 
-  int * lista_unida = (int *)malloc(n*sizeof(int));
+  /*int * lista_unida = (int *)malloc(n*sizeof(int));
   if(lista_unida==NULL){
     std::cout << "Error al asignar memoria a la lista" << endl;
     return 0; 
   }
   for(int i=0;i < tamanio_lista; i++){
     lista_unida[i] = lista_local[i];
-  }
+  }*/
 
- 
-    std::stringstream sstx;
-    sstx << ">>>> " << my_rank << " :";
+    std::stringstream sstp;
+    sstp << "***SOy " << my_rank << " valores :";
     
     for(int x = 0; x < tamanio_lista; x++){
-      sstx <<lista_unida[x] << " , ";
+      sstp <<lista_local[x] << " , ";
     }
-    sstx << std::endl;
+    sstp << std::endl;
     //result = sstm.str();
-    std::cout << sstx.str();
-  
+    std::cout << sstp.str();
 
+
+
+  int* lista_unida = mergeSort(lista_local, tamanio_lista); 
   int distance = 1;
  
-
+  MPI_Barrier(MPI_COMM_WORLD);
   while(working){
 
-    //MPI_Barrier(MPI_COMM_WORLD);
+    
 
     if(pro_id%2 == 0)
     {
@@ -252,11 +253,21 @@ int main( int argc, char *argv[] )
          std::cout << ssout.str();
         //Recibir la lista
         MPI_Recv(lista_a_recibir, tamanio_lista_recibir, MPI_INT, my_rank+distance, lista_recibir_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        
+
         //MERGE IT!!!
+        int * lista_local_unida = merge(lista_unida, lista_a_recibir,tamanio_lista,tamanio_lista_recibir);
+        free(lista_unida);
+        free(lista_a_recibir);
+        lista_unida = lista_local_unida;
+        //free(lista_local_unida);
+        tamanio_lista += tamanio_lista_recibir;
+
+        /*
         for(int x = 0; x < tamanio_lista_recibir; x++){
           lista_unida[tamanio_lista+x] = lista_a_recibir[x];
-        }
-        free(lista_a_recibir);
+        }*/
+        
 
       }
 
@@ -273,6 +284,7 @@ int main( int argc, char *argv[] )
       
     
   }
+
   std::cout << "I AM OUT!" <<std::endl;
   
   if(my_rank == 0 || my_rank == r){
@@ -281,7 +293,7 @@ int main( int argc, char *argv[] )
 
   if(my_rank == 0){
     std::stringstream sstm;
-    sstm << "*";
+    sstm << ">>>";
     
     for(int x = 0; x < n; x++){
       sstm <<lista_unida[x] << " , ";
@@ -289,9 +301,12 @@ int main( int argc, char *argv[] )
     //result = sstm.str();
     std::cout << sstm.str();
   }
-  
+
   free(lista_local);
-  free(lista_unida);
+  if(lista_local != lista_unida){
+    free(lista_unida);
+  }
+  
 
   MPI_Finalize();
    return 0;
@@ -301,8 +316,8 @@ void Genera_vector(int lista[], int n,  int m)
 {
       int i;
       for (i = 0; i < n; i++) {
-        //lista[i]= 0 + rand()%(m+1-0); 
-	         lista[i]= 7;                 
+        lista[i]= 0 + rand()%(m+1-0); 
+	         //lista[i]= i;                 
       }
 }
 
@@ -359,6 +374,7 @@ int* mergeSort(int lista[], int numElem)
 	int m1=0;
 	int recorridoL1 = 0;
 	int recorridoL2 = 0;
+
 	if(numElem==1) {
 		return lista;	
 	}
