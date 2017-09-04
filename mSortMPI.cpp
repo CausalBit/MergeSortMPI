@@ -49,6 +49,8 @@ int main( int argc, char *argv[] )
     void Genera_vector(int lista[], int n, int m);   /* Genera valores aleatorios para n vector de enteros*/
     int* mergeSort(int lista[], int numElem);
     int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2);
+    void cantidadValores(int lista[], int m, int tamanoLista);
+    void mostrarLista(int lista[],int tamanoLista);
     
     MPI_Init(&argc, &argv); /* Inicializacion del ambiente para MPI. */
 
@@ -306,6 +308,67 @@ void Genera_vector(int lista[], int n,  int m)
       }
 }
 
+/*Metodo principal del mergeSort. 
+Recibe la lista a ordenar y el número de elementos de la lista
+*/
+int* mergeSort(int lista[], int numElem) 
+{
+	int mitad=0; //Variable que se usa para calcular la mitad de la lista
+	int modulo=0; //Variable que se usa para calcular el módulo
+	int m2=0; //Variable que se usa si la mitad no es exacta, sería mitad+1
+	int recorridoL1 = 0; //Variable para saber por cual posición del vector mitad1 se van ingresando los valores 
+	int recorridoL2 = 0; //Variable para saber por cual posición del vector mitad2 se van ingresando los valores de la lista que dividimos
+
+	//Si la lista ordenada es de tamaño 1, nada mas retorna la lista porque ya se encuentra ordenada
+	if(numElem==1) {
+		return lista;	
+	}
+
+	//Si no es de tamaño 1 debe de dividir la lista en dos partes
+	else {
+		mitad = numElem/2; //Se calcula la mitad de la lista
+		modulo = numElem%2; //Se calcula el módulo de la lista para ver si es divisible por 2
+
+		//Si el modulo es 0 significa que la lista se puede dividir en dos partes
+		if(modulo==0)
+			m2=  mitad;
+
+		//Si el modulo no es 0 significa que una de las dos mitades debe tener una posición más que la otra
+		else 
+			m2=  mitad+1;
+			
+		//Se crean los vectores que simbolizan las dos mitades de la lista para hacer el mergeSort
+		int mitad1[mitad];
+		int mitad2[m2];
+		
+		//Ciclo que reparte los valores de la lista entre las dos mitades
+		for(int j=0; j<numElem; j++) {
+			//Si la posicion actual de la lista es menor que la mitad significa que el valor se ubica en la primera mitad
+			if(j<mitad) { 
+				mitad1[recorridoL1] = lista[j];
+				recorridoL1++;
+			}
+			
+			//Si la posicion actual de la lista es mayor o igual que la mitad significa que el valor se ubica en la segunda mitad
+			else {
+				mitad2[recorridoL2] = lista[j];
+				recorridoL2++;
+			}
+		}
+
+		//Si el modulo es igual 0 entonces se llama el merge, y se envia que las dos mitades poseen el mismo tamaño
+		if(modulo==0)
+			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad),mitad,mitad);
+
+		//Si el modulo es diferente que 0 entonces se llama el merge pero se envia que el tamaño de las dos mitades es diferente
+		else
+			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad+1),mitad,mitad+1);
+	}
+}
+
+/*Metodo auxiliar del mergeSort
+Recibe dos listas y genera una sola lista ordenada con los valores de las dos lista
+*/
 int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2) {
     int *result = (int *) malloc((nMitad1+nMitad2)*sizeof(int));
     int apuntador1 = 0;
@@ -349,45 +412,35 @@ int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2) {
 
     }
     return result;
+    //free(result);
 }
 
-
-int* mergeSort(int lista[], int numElem) 
+/*Método*/
+void cantidadValores(int lista[], int m, int tamanoLista) 
 {
-	int mitad=0;
-	int modulo=0;
-	int m1=0;
-	int recorridoL1 = 0;
-	int recorridoL2 = 0;
-	if(numElem==1) {
-		return lista;	
-	}
-	else {
-		mitad = numElem/2;
-		modulo = numElem%2;
-		if(modulo==0)
-			m1=  mitad;
-		else 
-			m1=  mitad+1;
-			
-		int mitad1[mitad];
-		int mitad2[m1];
-		
-		for(int j=0; j<numElem; j++) {
-			if(j<mitad) { 
-				mitad1[recorridoL1] = lista[j];
-				recorridoL1++;
-			}
-			else {
-				mitad2[recorridoL2] = lista[j];
-				recorridoL2++;
-			}
+    int cantidad = 0;
+    for(int i=0; i<=m; i++) {
+    	for(int j=0; j<tamanoLista; j++) {
+		if(lista[j]==i) {
+			cantidad++;
 		}
-		if(modulo==0)
-			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad),mitad,mitad);
-		else
-			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad+1),mitad,mitad+1);
 	}
+	if(cantidad != 0)
+		printf("\n\nEl número %d aparece %d veces \n\n",i,cantidad);
+	cantidad = 0;
+    }
+}
+
+void mostrarLista(int lista[],int tamanoLista) 
+{
+    printf("LISTA ORDENADA \n");
+    for(int i = 0; i < tamanoLista; i++) {
+    	if(i != tamanoLista-1)
+		printf("%d , ",lista[i]);
+	else
+		printf("%d \n",lista[i]);
+
+    }
 }
 
 
