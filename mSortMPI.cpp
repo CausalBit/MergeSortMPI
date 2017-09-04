@@ -47,6 +47,8 @@ int main( int argc, char *argv[] )
     int cantidadMenorTag = 11011;
     
     void Genera_vector(int lista[], int n, int m);   /* Genera valores aleatorios para n vector de enteros*/
+    int* mergeSort(int lista[], int numElem);
+    int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2);
     
     MPI_Init(&argc, &argv); /* Inicializacion del ambiente para MPI. */
 
@@ -296,6 +298,106 @@ void Genera_vector(int lista[], int n,  int m)
       }
 }
 
-void MPI_WAIT_RELEVANT(){
 
+int* mergeSort(int lista[], int numElem) 
+{
+	int mitad=0;
+	int modulo=0;
+	int m1=0;
+	int recorridoL1 = 0;
+	int recorridoL2 = 0;
+	if(numElem==1) {
+		return lista;	
+	}
+	else {
+		mitad = numElem/2;
+		modulo = numElem%2;
+		if(modulo==0)
+			m1=  mitad;
+		else 
+			m1=  mitad+1;
+			
+		int mitad1[mitad];
+		int mitad2[m1];
+		
+		for(int j=0; j<numElem; j++) {
+			if(j<mitad) { 
+				mitad1[recorridoL1] = lista[j];
+				recorridoL1++;
+			}
+			else {
+				mitad2[recorridoL2] = lista[j];
+				recorridoL2++;
+			}
+		}
+		if(modulo==0)
+			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad),mitad,mitad);
+		else
+			return merge(mergeSort(mitad1,mitad),mergeSort(mitad2,mitad+1),mitad,mitad+1);
+	}
 }
+
+int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2) {
+    int *result = (int *) malloc((nMitad1+nMitad2)*sizeof(int));
+    int apuntador1 = 0;
+    int apuntador2 = 0;
+    
+    int numResult = 0;
+
+    while (apuntador1 < nMitad1 && apuntador2 < nMitad2) {
+        if (mitad1[apuntador1] == mitad2[apuntador2]) {
+            result[numResult] = mitad1[apuntador1];
+            numResult++;
+            result[numResult] = mitad2[apuntador2];
+            numResult++;
+            apuntador1++;
+            apuntador2++;
+        } else if (mitad1[apuntador1] > mitad2[apuntador2]) {
+            result[numResult] = mitad2[apuntador2];
+            numResult++;
+            apuntador2++;
+        } else {
+            result[numResult] = mitad1[apuntador1];
+            apuntador1++;
+            numResult++;
+        }
+    }
+
+    if (apuntador1 < nMitad1 || apuntador2 != nMitad2) {
+        if (apuntador1 == nMitad1) {
+            while (apuntador2 < nMitad2) {
+                result[numResult] = mitad2[apuntador2];
+                numResult++;
+                apuntador2++;
+            }
+        } else {
+            while (apuntador1 != nMitad1) {
+                result[numResult] = mitad1[apuntador1];
+                numResult++;
+                apuntador1++;
+            }
+        }
+
+    }
+    return result;
+}
+
+/*
+int main(int argc, char** argv) {
+	int prueba[10] = {5,6,2,1,4,2,10,6,9,8};
+	for(int i=0; i<10; i++) {
+		printf("%d	,",prueba[i]);
+	}	
+	printf("\nMergerSort\n");
+	
+	int* resultado = (int *) malloc(10*sizeof(int));
+	resultado = mergeSort(prueba, 10);
+	
+	for(int i=0; i<10; i++) {
+		printf("%d	,",resultado[i]);
+	}	
+	free(resultado);
+	return 0;
+}
+*/
+
