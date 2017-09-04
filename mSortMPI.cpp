@@ -206,17 +206,18 @@ int main( int argc, char *argv[] )
   int* lista_unida = mergeSort(lista_local, tamanio_lista); 
   int distance = 1;
  
-  MPI_Barrier(MPI_COMM_WORLD);
+ // MPI_Barrier(MPI_COMM_WORLD);
   while(working){
 
     
-
-    if(pro_id%2 == 0)
+    
+    if(pro_id%2 == 0 )
     {
       
       //Enviar mi lista al proceso previo: my_rank - 1;
       std::stringstream ssout;
-      ssout << "SEND soy rank: "<<my_rank<<" pro_id: "<<pro_id<<" tamanio_lista "<<tamanio_lista<< " total nodos: "<<numero_nodos <<std::endl;
+      //<<" pro_id: "<<pro_id
+      ssout << "SEND soy rank: "<<my_rank<<" TO: "<<my_rank-distance<<", tamanio_lista "<<tamanio_lista<< " total nodos: "<<numero_nodos <<std::endl;
       std::cout << ssout.str();
 
       //Primero mandar el tamaño de la lista. 
@@ -226,17 +227,18 @@ int main( int argc, char *argv[] )
       MPI_Send(lista_unida,tamanio_lista,MPI_INT,my_rank-distance,lista_recibir_tag, MPI_COMM_WORLD);
 
       working = false;
-      //MPI_Comm_free(&alive_comm);
-      //pro_id = -1;
+      
+     
    
     }else{
-       
-
+      //MPI_Comm balancer_comm;
+      //team = numero_nodos;
+      //MPI_Comm_split(MPI_COMM_WORLD, team, my_rank, &balancer_comm);
       //Recibir la lista del proceso siguiente si es que existe:
       //Si my_rank + 2 <= numero_nodo.
       //Si recibo, entonces merge con la lista en local, la recibida. 
       //resulta en nueva lista local.
-      if(my_rank+2 <= numero_nodos){
+      if(pro_id+1 <= numero_nodos){
         //Recibir del siguiente nodo. 
         //Primero recibir el tamaños de la lista a recibir. 
         int tamanio_lista_recibir = 0;
@@ -251,10 +253,21 @@ int main( int argc, char *argv[] )
         
         std::stringstream ssout;
         //tamanio_lista += tamanio_lista_recibir;
-        ssout << "RECV soy rank: "<<my_rank<<" pro_id: "<<pro_id<<" tamanio_lista "<<tamanio_lista<<" tamaio a racibir "<< tamanio_lista_recibir << " total nodos: "<<numero_nodos <<std::endl;
-         std::cout << ssout.str();
+        //ssout << "RECV soy rank: "<<my_rank<<" pro_id: "<<pro_id<<" tamanio_lista "<<tamanio_lista<<" tamaio a racibir "<< tamanio_lista_recibir << " total nodos: "<<numero_nodos <<std::endl;
+        //std::cout << ssout.str();
         //Recibir la lista
         MPI_Recv(lista_a_recibir, tamanio_lista_recibir, MPI_INT, my_rank+distance, lista_recibir_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //<< " pro_id: "<< pro_id 
+        ssout<<"RECV: pro: "<<my_rank<< " from: "<<my_rank+distance<<", tamaño de lista "<<tamanio_lista<<" ";
+        ssout<<" lista_unida ";
+        for(int i = 0; i < tamanio_lista; i++){
+          ssout<<" "<<lista_unida[i];
+        }
+        ssout << " tamanio lista a recibir " << tamanio_lista_recibir << " lista_a_recibir: ";
+        for(int i = 0; i < tamanio_lista_recibir; i++){
+          ssout <<" "<<lista_a_recibir[i];
+        }
+        ssout<<std::endl;
         
 
         //MERGE IT!!!
@@ -265,10 +278,13 @@ int main( int argc, char *argv[] )
         //free(lista_local_unida);
         tamanio_lista += tamanio_lista_recibir;
 
-        /*
-        for(int x = 0; x < tamanio_lista_recibir; x++){
-          lista_unida[tamanio_lista+x] = lista_a_recibir[x];
+        //std::stringstream ssxx;
+       /* ssout << "***merged list: ";
+        
+        for(int x = 0; x < tamanio_lista; x++){
+          ssout << lista_unida[x] << " ";
         }*/
+        std::cout << ssout.str();
         
 
       }
@@ -297,7 +313,7 @@ int main( int argc, char *argv[] )
     std::stringstream sstm;
     sstm << ">>>";
     
-    for(int x = 0; x < n; x++){
+    for(int x = 0; x < tamanio_lista; x++){
       sstm <<lista_unida[x] << " , ";
     }
     //result = sstm.str();
@@ -321,6 +337,55 @@ void Genera_vector(int lista[], int n,  int m)
         lista[i]= 0 + rand()%(m+1-0); 
 	         //lista[i]= i;                 
       }
+}
+
+/*Metodo auxiliar del mergeSort
+Recibe dos listas y genera una sola lista ordenada con los valores de las dos lista
+*/
+int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2) {
+    int *result = (int *) malloc((nMitad1+nMitad2)*sizeof(int));
+    int apuntador1 = 0;
+    int apuntador2 = 0;
+    
+    int numResult = 0;
+
+    while (apuntador1 < nMitad1 && apuntador2 < nMitad2) {
+        if (mitad1[apuntador1] == mitad2[apuntador2]) {
+            result[numResult] = mitad1[apuntador1];
+            numResult++;
+            result[numResult] = mitad2[apuntador2];
+            numResult++;
+            apuntador1++;
+            apuntador2++;
+        } else if (mitad1[apuntador1] > mitad2[apuntador2]) {
+            result[numResult] = mitad2[apuntador2];
+            numResult++;
+            apuntador2++;
+        } else {
+            result[numResult] = mitad1[apuntador1];
+            apuntador1++;
+            numResult++;
+        }
+    }
+
+    if (apuntador1 < nMitad1 || apuntador2 != nMitad2) {
+        if (apuntador1 == nMitad1) {
+            while (apuntador2 < nMitad2) {
+                result[numResult] = mitad2[apuntador2];
+                numResult++;
+                apuntador2++;
+            }
+        } else {
+            while (apuntador1 != nMitad1) {
+                result[numResult] = mitad1[apuntador1];
+                numResult++;
+                apuntador1++;
+            }
+        }
+
+    }
+    return result;
+    //free(result);
 }
 
 /*Metodo principal del mergeSort. 
@@ -381,54 +446,7 @@ int* mergeSort(int lista[], int numElem)
 	}
 }
 
-/*Metodo auxiliar del mergeSort
-Recibe dos listas y genera una sola lista ordenada con los valores de las dos lista
-*/
-int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2) {
-    int *result = (int *) malloc((nMitad1+nMitad2)*sizeof(int));
-    int apuntador1 = 0;
-    int apuntador2 = 0;
-    
-    int numResult = 0;
 
-    while (apuntador1 < nMitad1 && apuntador2 < nMitad2) {
-        if (mitad1[apuntador1] == mitad2[apuntador2]) {
-            result[numResult] = mitad1[apuntador1];
-            numResult++;
-            result[numResult] = mitad2[apuntador2];
-            numResult++;
-            apuntador1++;
-            apuntador2++;
-        } else if (mitad1[apuntador1] > mitad2[apuntador2]) {
-            result[numResult] = mitad2[apuntador2];
-            numResult++;
-            apuntador2++;
-        } else {
-            result[numResult] = mitad1[apuntador1];
-            apuntador1++;
-            numResult++;
-        }
-    }
-
-    if (apuntador1 < nMitad1 || apuntador2 != nMitad2) {
-        if (apuntador1 == nMitad1) {
-            while (apuntador2 < nMitad2) {
-                result[numResult] = mitad2[apuntador2];
-                numResult++;
-                apuntador2++;
-            }
-        } else {
-            while (apuntador1 != nMitad1) {
-                result[numResult] = mitad1[apuntador1];
-                numResult++;
-                apuntador1++;
-            }
-        }
-
-    }
-    return result;
-    //free(result);
-}
 
 /*Método*/
 void cantidadValores(int lista[], int m, int tamanoLista) 
