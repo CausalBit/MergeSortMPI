@@ -43,6 +43,8 @@ int main( int argc, char *argv[] )
     int  my_rank;  /*  Identificacion de cada proceso*/
     int r;    //Restante de n/p, es deicr: indica los r procesos primeros con un proceso extra.
     int t;    //La cantidad mínima para todo proceso. 
+    double tiempo = 0; /*Variable para medir el tiempo*/
+    double tiempo2 = 0; /*Variable para medir el tiempo*/
     int cantidadMenorTag = 11011;
 
     for (int i = 0; i < argc; ++i) {
@@ -195,13 +197,13 @@ int main( int argc, char *argv[] )
       std::cout << sstp.str();
     }
 
-
     //Ordenar la lista inicial.   
+    tiempo = MPI_Wtime(); 
     int* lista_unida = mergeSort(lista_local, tamanio_lista); //Lista unida es la lista que utilizamos para pegar con listas recibidas, o para mandar a otros procesos. 
+    tiempo = MPI_Wtime() - tiempo;
     if(tamanio_lista > 1){free(lista_local);}
     int distance = 1; //Este nos dice que lejos del rango del proceso neceso mandar o recibir. 
  
-
     while(working){
 
       if(pro_id%2 == 0 )
@@ -263,8 +265,10 @@ int main( int argc, char *argv[] )
           }
 
           //MERGE IT!!! Pegar la lista recibida con la local. 
+	  tiempo2 = MPI_Wtime(); 
           int * lista_local_unida = merge(lista_unida, lista_a_recibir,tamanio_lista,tamanio_lista_recibir);
-          free(lista_unida);
+          tiempo2 = MPI_Wtime() - tiempo2;
+	  free(lista_unida);
           free(lista_a_recibir);
           lista_unida = lista_local_unida;
           tamanio_lista += tamanio_lista_recibir;
@@ -303,14 +307,14 @@ int main( int argc, char *argv[] )
       
       std::cout << "\nEl valor de p es: " << p << "\nEl valor de n es: " << n << "\nEl valor de m es: " << m;
       char mostrar;
-      std::cout << "\nDesea mostrar la lista ordenada (Y/N): ";
+      std::cout << "\n\n\nDesea mostrar la lista ordenada (Y/N): ";
       std::cin >> mostrar;
       if(mostrar == 'Y') 
-        mostrarLista(lista_unida,tamanio_lista);
-      std::cout << "\nNUMERO DE VECES QUE APARECE CADA NUMERO";
+	    mostrarLista(lista_unida,tamanio_lista);
+      std::cout << "\n\n\nTiempo que tarda el mergeSort: " << tiempo + tiempo2 << " segundos";
+      std::cout << "\n\n\nNUMERO DE VECES QUE APARECE CADA NUMERO";
       std::cout << "\n"; 
       cantidadValores(lista_unida,m,tamanio_lista);
-      
     }
 
     free(lista_unida);
