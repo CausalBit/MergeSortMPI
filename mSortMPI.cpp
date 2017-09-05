@@ -338,8 +338,7 @@ void Genera_vector(int lista[], int n,  int m)
 {
       int i;
       for (i = 0; i < n; i++) {
-        lista[i]= 0 + rand()%(m+1-0); 
-	         //lista[i]= i;                 
+        lista[i]= 0 + rand()%(m+1-0);              
       }
 }
 
@@ -470,7 +469,7 @@ void cantidadValores(int lista[], int m, int tamanoLista)
 	}
 	//Si la cantidad es cero no se imprime
   	if(cantidad != 0)
-  		std::cout<<"El numero " << i << "aparece " << cantidad << " veces \n",i,cantidad);
+  		std::cout<<"El numero " << i << " aparece " << cantidad << " veces \n";
   	cantidad = 0; //Se reinica el contador para el siguiente numero
   }
 }
