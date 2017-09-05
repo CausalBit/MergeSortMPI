@@ -265,10 +265,10 @@ int main( int argc, char *argv[] )
           }
 
           //MERGE IT!!! Pegar la lista recibida con la local. 
-	  tiempo2 = MPI_Wtime(); 
+	        tiempo2 = MPI_Wtime(); 
           int * lista_local_unida = merge(lista_unida, lista_a_recibir,tamanio_lista,tamanio_lista_recibir);
-          tiempo2 = MPI_Wtime() - tiempo2;
-	  free(lista_unida);
+          tiempo += MPI_Wtime() - tiempo2;
+	        free(lista_unida);
           free(lista_a_recibir);
           lista_unida = lista_local_unida;
           tamanio_lista += tamanio_lista_recibir;
@@ -311,7 +311,7 @@ int main( int argc, char *argv[] )
       std::cin >> mostrar;
       if(mostrar == 'Y') 
 	    mostrarLista(lista_unida,tamanio_lista);
-      std::cout << "\n\n\nTiempo que tarda el mergeSort: " << tiempo + tiempo2 << " segundos";
+      std::cout << "\n\n\nTiempo que tarda el mergeSort: " << tiempo << " segundos";
       std::cout << "\n\n\nNUMERO DE VECES QUE APARECE CADA NUMERO";
       std::cout << "\n"; 
       cantidadValores(lista_unida,m,tamanio_lista);
