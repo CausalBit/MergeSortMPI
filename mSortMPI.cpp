@@ -7,9 +7,9 @@
 		Mezclar cada sublista hasta que se forme una sola
 
 	El programa ordena con p procesos una lista de n valores entre 0 y m, donde
-		p es el numero de procesos, lo define el usuario en "mpiexcec". Debe de ser potencia de 2
-		n es el tamaÃ±o de la lista a ordenas, se los pide al usuario el proceso raiz. Debe de se divisible por p
-		m es el rango de posibles valores que pueden aparecer en la lista, se los pide al usuario el proceso raiz. Debe ser <=60
+		p es el numero de procesos, lo define el usuario en "mpiexcec".
+		n es el tamaÃ±o de la lista a ordenar, se los pide al usuario el proceso raiz.
+		m es el rango de posibles valores que pueden aparecer en la lista, se los pide al usuario el proceso raiz. Debe ser <=500
 
 	Al final se despliega
 		Lista ordenada, si el usuario lo desea
@@ -47,10 +47,10 @@ int main( int argc, char *argv[] )
     int cantidadMenorTag = 11011;
     
     void Genera_vector(int lista[], int n, int m);   /* Genera valores aleatorios para n vector de enteros*/
-    int* mergeSort(int lista[], int numElem);
-    int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2);
-    void cantidadValores(int lista[], int m, int tamanoLista);
-    void mostrarLista(int lista[],int tamanoLista);
+    int* mergeSort(int lista[], int numElem); /*Metodo que realiza el mergeSort*/
+    int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2);/*Metodo que hace merge a dos listas, y las une en una lista ordenada*/
+    void cantidadValores(int lista[], int m, int tamanoLista);/*Metodo para imprimir la cantidad de veces que aparece cada numero en la lista */
+    void mostrarLista(int lista[],int tamanoLista);/*Metodo que muestra la lista ordenada*/
     
     MPI_Init(&argc, &argv); /* Inicializacion del ambiente para MPI. */
 
@@ -117,8 +117,6 @@ int main( int argc, char *argv[] )
     MPI_Barrier(MPI_COMM_WORLD); 
     if(my_rank == 0 ){std::cout << "Donde broadcasting with r = "<< r << std::endl; }
 
-
-
     if(my_rank == r && r != 0 )//Soy el proceso raíz del segundo subgrupo de comm. 
     {
       std::cout << "preparing list with n = " << n << std::endl;
@@ -138,9 +136,7 @@ int main( int argc, char *argv[] )
       } 
       std::cout << "la lista está terminada" <<std::endl;
     }
-     
-    
-
+	
     //Vamos a dividir los procesos en dos sub comunicadores. El de color 1 que recibe t+1 items en sus listas. 
     //El de color 2 que recibe t items. Esto para garantizar una manera de recibir cualquier cantidad de n de items.
 
@@ -310,22 +306,30 @@ int main( int argc, char *argv[] )
   }
 
   if(my_rank == 0){
-    std::stringstream sstm;
+    /*std::stringstream sstm;
     sstm << ">>>";
     
     for(int x = 0; x < tamanio_lista; x++){
       sstm <<lista_unida[x] << " , ";
     }
     //result = sstm.str();
-    std::cout << sstm.str();
+    std::cout << sstm.str();*/
+    std::cout << "\nEl valor de p es: " << p << "\nEl valor de n es: " << n << "\nEl valor de m es: " << m;
+    char mostrar;
+    std::cout << "\nDesea mostrar la lista ordenada (Y/N): ";
+    std::cin >> mostrar;
+    if(mostrar == 'Y') 
+	    mostrarLista(lista_unida,tamanio_lista);
+    std::cout << "\nNUMERO DE VECES QUE APARECE CADA NUMERO";
+    std::cout << "\n"; 
+    cantidadValores(lista_unida,m,tamanio_lista);
+    
   }
 
   free(lista_local);
   if(lista_local != lista_unida){
     free(lista_unida);
   }
-  
-
   MPI_Finalize();
    return 0;
 }
@@ -466,7 +470,7 @@ void cantidadValores(int lista[], int m, int tamanoLista)
 	}
 	//Si la cantidad es cero no se imprime
   	if(cantidad != 0)
-  		printf("\n\nEl numero %d aparece %d veces \n\n",i,cantidad);
+  		std::cout<<"El numero " << i << "aparece " << cantidad << " veces \n",i,cantidad);
   	cantidad = 0; //Se reinica el contador para el siguiente numero
   }
 }
@@ -476,15 +480,14 @@ Recibe la lista que se desea mostrar y el tamaño de la lista
 */
 void mostrarLista(int lista[],int tamanoLista) 
 {
-    printf("LISTA ORDENADA \n");
+    std::cout<<"LISTA ORDENADA \n";
     //Ciclo que recorre la lista que se desea mostrar
     for(int i = 0; i < tamanoLista; i++) {
 	//Si no es la ultima posicion de la lista, se muestra el numero y se separa con una ,
     	if(i != tamanoLista-1)
-		printf("%d , ",lista[i]);
+		std::cout<<lista[i]<<" , ";
 	//Si es la ultima solo muestra el valor de la lista
 	else
-		printf("%d \n",lista[i]);
-
+		std::cout<<lista[i]<<" \n";
     }
 }
