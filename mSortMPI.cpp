@@ -331,14 +331,8 @@ int main( int argc, char *argv[] )
  
   
     free(lista_unida);
-<<<<<<< HEAD
-  
 
-  
 
-=======
-  }
->>>>>>> a5278c443492e5790d72419a78d53bcc879591af
   MPI_Finalize();
    return 0;
 }
