@@ -204,6 +204,8 @@ int main( int argc, char *argv[] )
 
 
   int* lista_unida = mergeSort(lista_local, tamanio_lista); 
+  if(tamanio_lista > 1){free(lista_local);}
+
   int distance = 1;
  
  // MPI_Barrier(MPI_COMM_WORLD);
@@ -320,10 +322,11 @@ int main( int argc, char *argv[] )
     std::cout << sstm.str();
   }
 
-  free(lista_local);
-  if(lista_local != lista_unida){
+ 
+  
     free(lista_unida);
-  }
+  
+
   
 
   MPI_Finalize();
