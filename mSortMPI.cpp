@@ -28,6 +28,7 @@
 
 #include <chrono>
 #include <ctime>
+#include <iomanip>
 
 using namespace std;
 
@@ -83,8 +84,11 @@ int main( int argc, char *argv[] )
         std::cin >> n;
       }
     
-      std::cout << endl << "Digite el limite de valores aleatorios en la lista: " << endl;
-	    std::cin >> m;
+      m = 0; //init
+      while( m == 0 || m > 500 ){
+        std::cout << endl << "Digite el limite de valores aleatorios en la lista (0 < m <= 500): " << endl;
+  	    std::cin >> m;
+      }
     
       lista = (int *)malloc(n*sizeof(int));
       if(DEBUG && lista==NULL){
@@ -93,6 +97,7 @@ int main( int argc, char *argv[] )
       }
 
       Genera_vector(lista, n, m);//Genero los valores en la lista. 
+      tiempo = MPI_Wtime();
 
 
       //EXPLICACION DE MODIFICACION PARA MANERJAR p != 2^n, y n no divisible entre p:
@@ -197,10 +202,9 @@ int main( int argc, char *argv[] )
       std::cout << sstp.str();
     }
 
-    //Ordenar la lista inicial.   
-    tiempo = MPI_Wtime(); 
+    //Ordenar la lista inicial.    
     int* lista_unida = mergeSort(lista_local, tamanio_lista); //Lista unida es la lista que utilizamos para pegar con listas recibidas, o para mandar a otros procesos. 
-    tiempo = MPI_Wtime() - tiempo;
+    //tiempo = MPI_Wtime() - tiempo;
     if(tamanio_lista > 1){free(lista_local);}
     int distance = 1; //Este nos dice que lejos del rango del proceso neceso mandar o recibir. 
  
@@ -264,10 +268,8 @@ int main( int argc, char *argv[] )
             ssout<<std::endl;
           }
 
-          //MERGE IT!!! Pegar la lista recibida con la local. 
-	        tiempo2 = MPI_Wtime(); 
+          //MERGE IT!!! Pegar la lista recibida con la local.  
           int * lista_local_unida = merge(lista_unida, lista_a_recibir,tamanio_lista,tamanio_lista_recibir);
-          tiempo += MPI_Wtime() - tiempo2;
 	        free(lista_unida);
           free(lista_a_recibir);
           lista_unida = lista_local_unida;
@@ -304,14 +306,17 @@ int main( int argc, char *argv[] )
         std::cout << sstm.str();
       }
 
-      
+      //Para no ontar el tiempo de impresion de los siguientes mensajes, antes de que se despliege los resutaldos, se toma el tiempo aquí
+      tiempo += MPI_Wtime() - tiempo;
       std::cout << "\nEl valor de p es: " << p << "\nEl valor de n es: " << n << "\nEl valor de m es: " << m;
       char mostrar;
       std::cout << "\n\n\nDesea mostrar la lista ordenada (Y/N): ";
       std::cin >> mostrar;
       if(mostrar == 'Y') 
 	    mostrarLista(lista_unida,tamanio_lista);
-      std::cout << "\n\n\nTiempo que tarda el mergeSort: " << tiempo << " segundos";
+      std::cout<< fixed << showpoint;
+      std::cout << setprecision(1);
+      std::cout << "\n\n\nTiempo que tarda el mergeSort: " << tiempo  <<" segundos.";
       std::cout << "\n\n\nNUMERO DE VECES QUE APARECE CADA NUMERO";
       std::cout << "\n"; 
       cantidadValores(lista_unida,m,tamanio_lista);
