@@ -84,9 +84,9 @@ int main( int argc, char *argv[] )
         std::cin >> n;
       }
     
-      m = 0; //init
-      while( m == 0 || m > 500 ){
-        std::cout << endl << "Digite el limite de valores aleatorios en la lista (0 < m <= 500): " << endl;
+      m = 501; //init
+      while(  m > 500 ){
+        std::cout << endl << "Digite el limite de valores aleatorios en la lista ( m <= 500): " << endl;
   	    std::cin >> m;
       }
     
