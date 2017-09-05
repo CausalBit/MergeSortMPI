@@ -33,312 +33,289 @@ using namespace std;
 
 int main( int argc, char *argv[] )
 {
+    bool DEBUG = false;
     int* lista;        /* Lista que debe ser ordenada*/
     int* lista_cantidadMenor;
     int* lista_local;
-    int  n;            /*  Dimension de los 2 vectores dada por el usuario */
-    int m;	       /*  Limite de numeros aleatorios de la lista */ 		
-    int  p;            /*  Numero de procesos que corren */
-    int  my_rank;      /*  Identificacion de cada proceso*/
-    int r;
-    int t;
-    int signal = 0;
-
+    int  n = 0;     /*  Dimension de los 2 vectores dada por el usuario */
+    int  m;	       /*  Limite de numeros aleatorios de la lista */ 		
+    int  p;        /*  Numero de procesos que corren */
+    int  my_rank;  /*  Identificacion de cada proceso*/
+    int r;    //Restante de n/p, es deicr: indica los r procesos primeros con un proceso extra.
+    int t;    //La cantidad mínima para todo proceso. 
     int cantidadMenorTag = 11011;
+
+    for (int i = 0; i < argc; ++i) {
+        std::stringstream argument;
+        argument << argv[i];
+        DEBUG = (argument.str() == "D");
+    }
     
+    //DECLARACIONES DE FUNCIONES 
     void Genera_vector(int lista[], int n, int m);   /* Genera valores aleatorios para n vector de enteros*/
     int* mergeSort(int lista[], int numElem); /*Metodo que realiza el mergeSort*/
     int* merge(int mitad1[], int mitad2[], int nMitad1, int nMitad2);/*Metodo que hace merge a dos listas, y las une en una lista ordenada*/
     void cantidadValores(int lista[], int m, int tamanoLista);/*Metodo para imprimir la cantidad de veces que aparece cada numero en la lista */
     void mostrarLista(int lista[],int tamanoLista);/*Metodo que muestra la lista ordenada*/
-    
+
+
+    //INICIO DE VARIABLES DE MPI
     MPI_Init(&argc, &argv); /* Inicializacion del ambiente para MPI. */
 
     MPI_Comm_size(MPI_COMM_WORLD, &p); //Cantidad de procesos inicializados. 
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank); //El rango del proceso "local".              
+    MPI_Comm_rank(MPI_COMM_WORLD, &my_rank); //El rango del proceso en COMM WORLD.              
        
-    MPI_Comm balancer_comm, alive_comm; //Este comunicador sirve entre procesos que tengan el mísmo número de items. 
-    MPI_Group original_group;
+    MPI_Comm balancer_comm; //Este comunicador sirve entre procesos que tengan el mísmo número de items, sea t+1 o t. 
 
+    //Identificación del grupo.
+    MPI_Group original_group;
     MPI_Comm_group(MPI_COMM_WORLD, &original_group); //
 
-    if (my_rank == 0) {   /* LO QUE SIGUE LO REALIZA UNICAMENTE EL PROCESO 0 (PROCESO RAIZ o PRINCIPAL) */
+    if (my_rank == 0)/* LO QUE SIGUE LO REALIZA UNICAMENTE EL PROCESO 0 (PROCESO RAIZ o PRINCIPAL) */
+    {   
 
-      n = 0;
       while( n <= 0 ) //Nunca se puede seguir si n no es mayor a 0. 
       {
-        std::cout << "Digite el tamano de la lista, que sea mayor a 0." << endl;
+        std::cout << endl <<"Digite el tamano de la lista, que sea mayor a 0." << endl;
         std::cin >> n;
       }
     
-      std::cout << "Digite el limite de valores aleatorios en la lista" << endl;
+      std::cout << endl << "Digite el limite de valores aleatorios en la lista: " << endl;
 	    std::cin >> m;
     
       lista = (int *)malloc(n*sizeof(int));
-      if(lista==NULL){
-		    std::cout << "Error al asignar memoria a la lista" << endl;
+      if(DEBUG && lista==NULL){
+		    std::cout << endl << "Error al asignar memoria a la lista" << endl;
 		    return 0; 
       }
-      Genera_vector(lista, n, m);
-      /*
-    	for(int i=0; i < n; i++) {
-        std::cout <<"parent WORLD: " << lista[i] << " ";
-      }*/
-      std::cout<<"numero de procesos " << p << std::endl;
+
+      Genera_vector(lista, n, m);//Genero los valores en la lista. 
+
+
+      //EXPLICACION DE MODIFICACION PARA MANERJAR p != 2^n, y n no divisible entre p:
+      //Independiente p, la parte no divisible de n se representa como r, tal que r = n%p;
+      //Es decir, despues de dividir por igual los items entre los procesos, sobran r. 
+      //Estos r items restantes se reparten entre los primeros p (sería los primero r procesos).
+      //t es el mínimo que tiene todos los procesos. 
+      //Si n < p, entonces se reparten t = 1 items hasta agotar entre los p. 
       
       r = n % p;  //Restante de la division de items en la lista entre los procesos. 
                   //También indica los r primero procesos a recibir t+1 items.  
-      r = r == n ? 0: r;
+      r = r == n ? 0: r; //Esto verifica que no hay restantes cuando n < p, porque modulo != 0 en este caso.
       t = n < p ? 1 : (n - r)/p;  //Cuantos items por proceso para que tengan el mismo número de procesos (no contando los restantes).
-      if(r != 0){
-        int elementos_r = ((t+1)*r);
+      if(r != 0) //Si hay restantes, entonces enviar un puntero indicando desde donde se reparte la lista en sublista de tamaño t. 
+      {
+        int elementos_r = ((t+1)*r); //Indice donde inicia a repartirse la lista en t, después de repartirse en t+1 para los primeros r procesos. 
         int num_elementos_to_send = n - elementos_r;
-        lista_cantidadMenor = lista+elementos_r;
+        lista_cantidadMenor = lista+elementos_r; //Este puntero indica el primer elmento en la lista que no pertenece a ninguno de lor primeros procesos r.
 
-        for(int i = 0; i < num_elementos_to_send; i++){
-          std::cout <<"testing lista cantidad menor: " << lista_cantidadMenor[i] << std::endl;
+        if(DEBUG){
+          for(int i = 0; i < num_elementos_to_send; i++){
+            std::cout<<endl<<"testing lista cantidad menor: " << lista_cantidadMenor[i] << std::endl;
+          }
+          std::cout << "About to send lista_cantidadMenor to process " << r << std::endl; 
         }
-        std::cout << "About to send lista_cantidadMenor to process " << r << std::endl; 
         //MPI_Send (&buf,count,datatype,dest,tag,comm) 
         MPI_Send (lista_cantidadMenor,num_elementos_to_send,MPI_INT,r,cantidadMenorTag, MPI_COMM_WORLD);  //Mandamos la lista de cantidades menores al pocesador que se convertira
                                                                                         //en la raiz de su comunicador que se crea al hacer el split después.
-        std::cout << "0 is done sending lista_cantidadMenor" << std::endl; 
+        if(DEBUG){ 
+          std::cout << "0 is done sending lista_cantidadMenor" << std::endl; 
+        }
       }
-
-      //free(lista_cantidadMenor);
       lista_cantidadMenor = NULL;
     }
 	       
-
+    //Compartir las variables con todos los procesos. 
     MPI_Bcast(&t, 1, MPI_INT, 0, MPI_COMM_WORLD);
    	MPI_Bcast(&r, 1, MPI_INT, 0, MPI_COMM_WORLD);
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Barrier(MPI_COMM_WORLD); 
-    if(my_rank == 0 ){std::cout << "Donde broadcasting with r = "<< r << std::endl; }
+    MPI_Barrier(MPI_COMM_WORLD); //Esperar a que todos los procesos tengan las variables. 
 
-    if(my_rank == r && r != 0 )//Soy el proceso raíz del segundo subgrupo de comm. 
+    if(DEBUG && my_rank == 0 ){std::cout << "Donde broadcasting with r = "<< r << std::endl; }
+
+    if(my_rank == r && r != 0 )//Un particularidad de r, es que indica el rank del primer proceso de subgrupo de procesos de WORLD que sólo tiene t elemetos cada uno. Por lo tanto, r != proceso raíz (0)
     {
-      std::cout << "preparing list with n = " << n << std::endl;
+      //Entonces este proceso recive la lista menor, para repartir entre el resto de los procesos. 
       int num_elementos_to_rcv = n - ((t+1)*r);
 
       lista = (int *)malloc(num_elementos_to_rcv*sizeof(int));
-          if(lista==NULL){
-            std::cout << "Error al asignar memoria a la lista" << endl;
-            return 0; 
-          }
-      std::cout << my_rank <<  " is bout to receive " << std::endl;
+      if(DEBUG && lista==NULL){
+        std::cout << "Error al asignar memoria a la lista" << endl;
+        return 0; 
+      }
+      if(DEBUG){ std::cout << my_rank <<  " is bout to receive " << std::endl; }
       //MPI_Recv (&buf,count,datatype,source,tag,comm,&status) 
       MPI_Recv(lista,num_elementos_to_rcv ,MPI_INT,0,cantidadMenorTag,MPI_COMM_WORLD,MPI_STATUS_IGNORE); //Recibir la lista de cantidades menores
-      std::cout << "Done receiving, starting testing: ";
-      for(int i = 0; i < num_elementos_to_rcv; i++){
-        std::cout << "--" << lista[i] << std::endl;
-      } 
-      std::cout << "la lista está terminada" <<std::endl;
+      if(DEBUG){
+        std::cout << "Done receiving, starting testing: ";
+        for(int i = 0; i < num_elementos_to_rcv; i++){
+          std::cout << "--" << lista[i] << std::endl;
+        } 
+        std::cout << "la lista está terminada" <<std::endl;
+      }
     }
 	
     //Vamos a dividir los procesos en dos sub comunicadores. El de color 1 que recibe t+1 items en sus listas. 
     //El de color 2 que recibe t items. Esto para garantizar una manera de recibir cualquier cantidad de n de items.
-
-   // std::cout << "Starting to calculate color for "<< my_rank <<std::endl; 
-
     int color = my_rank < r ? 1 : 0; //Esto es para calcular el color (identificar procesos de un comunicador) del proceso.
-    //std::cout << " pro "<< my_rank << "with color "<< color << std::endl; 
-    MPI_Barrier(MPI_COMM_WORLD);
-
+                                     //Si son parte de los primeros r procesos, se le va a dar t+1 items de la lista, sino sólo t. 
+    MPI_Barrier(MPI_COMM_WORLD); //Esperamos a quetodos tenga un color. 
     //Aquí es donde se reparte los procesos según color y se identifican con el COMM handler balancer_comm. 
     MPI_Comm_split(MPI_COMM_WORLD, color, my_rank, &balancer_comm);
-    //std::cout << "After Splitiing about to allocate "<< my_rank << " with balancer: "<< balancer_comm <<std::endl; 
-
     //Ahora, dependiendo del color, la lista será del tamaño t+1, o t.
     lista_local = (int *)malloc((t+color)*sizeof(int));
      //std::cout << "Done allocating "<< my_rank <<std::endl; 
-  MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
 
    
-      //Vamos a repartir la lista. Para los procesos en COMM_WORLD con rank menor a r, esto reciben t+1, para los otro t. 
-       // MPI_Scatter (&sendbuf,sendcnt,sendtype,&recvbuf,recvcnt,recvtype,root,comm)
+    //Vamos a repartir la lista. Para los procesos en COMM_WORLD con rank menor a r, esto reciben t+1, para los otro t. 
+    // MPI_Scatter (&sendbuf,sendcnt,sendtype,&recvbuf,recvcnt,recvtype,root,comm)
+    int size_to_scatter = color == 1 ? t+1: t;
+    MPI_Scatter(lista, size_to_scatter, MPI_INT, lista_local, size_to_scatter, MPI_INT, 0, balancer_comm);
+    MPI_Barrier(MPI_COMM_WORLD);
 
-  int size_to_scatter = color == 1 ? t+1: t;
-      
-       // MPI_Scatter(lista, t + 1, MPI_INT, lista_local, t + 1, MPI_INT, 0, balancer_comm);
-      
-    
-  MPI_Scatter(lista, size_to_scatter, MPI_INT, lista_local, size_to_scatter, MPI_INT, 0, balancer_comm);
+    //**  
+    int pro_id = my_rank + 1; //Este identificar nos anumera los procesos que aplican merge a las sublistas. Cada vez son menos.
+    int numero_nodos = n>=p? p: n; //El número total de procesos activos en realizar merge. 
+    bool working = true; //Indica si el proceso necesita enviar, o recibir y aplicar merge. 
+    int tamanio_lista = size_to_scatter; //el tamaño de la lista unida (despues del merge), que eventualimente se convierte en tamaño n. 
+    //Tags para no confundir enviaos. 
+    int tamanio_tag = 11110; //Para enviar la variable del tamaño de la lista a enviar. 
+    int lista_recibir_tag = 77777; //Para enviar la lista. 
 
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  //**  
-  int pro_id = my_rank + 1;
-  int numero_nodos = n>=p? p: n;
-  bool working = true;
-  int tamanio_lista = size_to_scatter;
-  int tamanio_tag = 11110;
-  int lista_recibir_tag = 77777;
-
-  //Merge-Sort la lista local. 
-  /*int * lista_unida = (int *)malloc(n*sizeof(int));
-  if(lista_unida==NULL){
-    std::cout << "Error al asignar memoria a la lista" << endl;
-    return 0; 
-  }
-  for(int i=0;i < tamanio_lista; i++){
-    lista_unida[i] = lista_local[i];
-  }*/
-
-    std::stringstream sstp;
-    sstp << "***SOy " << my_rank << " valores :";
-    
-    for(int x = 0; x < tamanio_lista; x++){
-      sstp <<lista_local[x] << " , ";
+    if(DEBUG){
+      //SENALO LOS ELMENTOS EN LA LISTA INICIAL
+      std::stringstream sstp;
+      sstp << "***Soy " << my_rank << " valores :";
+      for(int x = 0; x < tamanio_lista; x++){
+        sstp <<lista_local[x] << " , ";
+      }
+      sstp << std::endl;
+      std::cout << sstp.str();
     }
-    sstp << std::endl;
-    //result = sstm.str();
-    std::cout << sstp.str();
 
 
-
-  int* lista_unida = mergeSort(lista_local, tamanio_lista); 
-  if(tamanio_lista > 1){free(lista_local);}
-
-  int distance = 1;
+    //Ordenar la lista inicial.   
+    int* lista_unida = mergeSort(lista_local, tamanio_lista); //Lista unida es la lista que utilizamos para pegar con listas recibidas, o para mandar a otros procesos. 
+    if(tamanio_lista > 1){free(lista_local);}
+    int distance = 1; //Este nos dice que lejos del rango del proceso neceso mandar o recibir. 
  
- // MPI_Barrier(MPI_COMM_WORLD);
-  while(working){
 
-    
-    
-    if(pro_id%2 == 0 )
-    {
-      
-      //Enviar mi lista al proceso previo: my_rank - 1;
-      std::stringstream ssout;
-      //<<" pro_id: "<<pro_id
-      ssout << "SEND soy rank: "<<my_rank<<" TO: "<<my_rank-distance<<", tamanio_lista "<<tamanio_lista<< " total nodos: "<<numero_nodos <<std::endl;
-      std::cout << ssout.str();
+    while(working){
 
-      //Primero mandar el tamaño de la lista. 
-      //MPI_Send (&buf,count,datatype,dest,tag,comm) 
-      MPI_Send(&tamanio_lista,1,MPI_INT,my_rank-distance,tamanio_tag, MPI_COMM_WORLD);
-      //Mandar lista :D
-      MPI_Send(lista_unida,tamanio_lista,MPI_INT,my_rank-distance,lista_recibir_tag, MPI_COMM_WORLD);
-
-      working = false;
-      
-     
-   
-    }else{
-      //MPI_Comm balancer_comm;
-      //team = numero_nodos;
-      //MPI_Comm_split(MPI_COMM_WORLD, team, my_rank, &balancer_comm);
-      //Recibir la lista del proceso siguiente si es que existe:
-      //Si my_rank + 2 <= numero_nodo.
-      //Si recibo, entonces merge con la lista en local, la recibida. 
-      //resulta en nueva lista local.
-      if(pro_id+1 <= numero_nodos){
-        //Recibir del siguiente nodo. 
-        //Primero recibir el tamaños de la lista a recibir. 
-        int tamanio_lista_recibir = 0;
-        //MPI_Recv (&buf,count,datatype,source,tag,comm,&status) 
-        MPI_Recv(&tamanio_lista_recibir,1,MPI_INT,my_rank+distance,tamanio_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-
-        int * lista_a_recibir = (int *)malloc(tamanio_lista_recibir*sizeof(int));
-        if(lista_a_recibir==NULL){
-          std::cout << "Error al asignar memoria a la lista" << endl;
-          return 0; 
+      if(pro_id%2 == 0 )
+      {
+        //Enviar mi lista al proceso previo: my_rank - distancia;
+        if(DEBUG){
+          std::stringstream ssout;
+          //<<" pro_id: "<<pro_id
+          ssout << "SEND soy rank: "<<my_rank<<" TO: "<<my_rank-distance<<", tamanio_lista "<<tamanio_lista<< " total nodos: "<<numero_nodos <<std::endl;
+          std::cout << ssout.str();
         }
-        
-        std::stringstream ssout;
-        //tamanio_lista += tamanio_lista_recibir;
-        //ssout << "RECV soy rank: "<<my_rank<<" pro_id: "<<pro_id<<" tamanio_lista "<<tamanio_lista<<" tamaio a racibir "<< tamanio_lista_recibir << " total nodos: "<<numero_nodos <<std::endl;
-        //std::cout << ssout.str();
-        //Recibir la lista
-        MPI_Recv(lista_a_recibir, tamanio_lista_recibir, MPI_INT, my_rank+distance, lista_recibir_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-        //<< " pro_id: "<< pro_id 
-        ssout<<"RECV: pro: "<<my_rank<< " from: "<<my_rank+distance<<", tamaño de lista "<<tamanio_lista<<" ";
-        ssout<<" lista_unida ";
-        for(int i = 0; i < tamanio_lista; i++){
-          ssout<<" "<<lista_unida[i];
-        }
-        ssout << " tamanio lista a recibir " << tamanio_lista_recibir << " lista_a_recibir: ";
-        for(int i = 0; i < tamanio_lista_recibir; i++){
-          ssout <<" "<<lista_a_recibir[i];
-        }
-        ssout<<std::endl;
-        
 
-        //MERGE IT!!!
-        int * lista_local_unida = merge(lista_unida, lista_a_recibir,tamanio_lista,tamanio_lista_recibir);
-        free(lista_unida);
-        free(lista_a_recibir);
-        lista_unida = lista_local_unida;
-        //free(lista_local_unida);
-        tamanio_lista += tamanio_lista_recibir;
+        //Primero mandar el tamaño de la lista. 
+        //MPI_Send (&buf,count,datatype,dest,tag,comm) 
+        MPI_Send(&tamanio_lista,1,MPI_INT,my_rank-distance,tamanio_tag, MPI_COMM_WORLD);
+        //Mandar lista :D
+        MPI_Send(lista_unida,tamanio_lista,MPI_INT,my_rank-distance,lista_recibir_tag, MPI_COMM_WORLD);
+        working = false; //Ya no necesita hacer nada, se sale del ciclo. 
 
-        //std::stringstream ssxx;
-       /* ssout << "***merged list: ";
+      }else{
         
+        //Recibir la lista del proceso siguiente si es que existe:
+        //Es decir, si existe un rango que me pueda mandar algo. 
+        //Si recibo, entonces merge con la lista en local, la recibida. 
+        //resulta en nueva lista local.
+        if(pro_id+1 <= numero_nodos){
+          //Recibir del siguiente nodo. 
+          //Primero recibir el tamaños de la lista a recibir. 
+          int tamanio_lista_recibir = 0;
+          //MPI_Recv (&buf,count,datatype,source,tag,comm,&status) 
+          MPI_Recv(&tamanio_lista_recibir,1,MPI_INT,my_rank+distance,tamanio_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+
+          int * lista_a_recibir = (int *)malloc(tamanio_lista_recibir*sizeof(int));
+          if(lista_a_recibir==NULL){
+            std::cout << "Error al asignar memoria a la lista" << endl;
+            return 0; 
+          }
+          
+          
+          std::stringstream ssout;
+          if(DEBUG){
+            ssout << "RECV soy rank: "<<my_rank<<" pro_id: "<<pro_id<<" tamanio_lista "<<tamanio_lista<<" tamaio a racibir "<< tamanio_lista_recibir << " total nodos: "<<numero_nodos <<std::endl;
+            std::cout << ssout.str();
+          }
+          //Recibir la lista
+          MPI_Recv(lista_a_recibir, tamanio_lista_recibir, MPI_INT, my_rank+distance, lista_recibir_tag,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+
+          if(DEBUG){
+            ssout<<"RECV: pro: "<<my_rank<< " from: "<<my_rank+distance<<", tamaño de lista "<<tamanio_lista<<" ";
+            ssout<<" lista_unida ";
+            for(int i = 0; i < tamanio_lista; i++){
+              ssout<<" "<<lista_unida[i];
+            }
+            ssout << " tamanio lista a recibir " << tamanio_lista_recibir << " lista_a_recibir: ";
+            for(int i = 0; i < tamanio_lista_recibir; i++){
+              ssout <<" "<<lista_a_recibir[i];
+            }
+            ssout<<std::endl;
+          }
+
+          //MERGE IT!!! Pegar la lista recibida con la local. 
+          int * lista_local_unida = merge(lista_unida, lista_a_recibir,tamanio_lista,tamanio_lista_recibir);
+          free(lista_unida);
+          free(lista_a_recibir);
+          lista_unida = lista_local_unida;
+          tamanio_lista += tamanio_lista_recibir;
+
+          if(DEBUG){ std::cout << ssout.str(); }
+        }
+
+        //Para todos los impares. 
+        pro_id = (pro_id +1 )/ 2;  //Actualizo el id que numera el proceso-
+        numero_nodos = numero_nodos % 2 == 0 ? numero_nodos/2 :  (numero_nodos+1 ) / 2; //calcula cuantos procesos quedan activos.
+        distance <<= 1; //La distancia entre nodos activos (que tienen que enviar o recibir) incrementa con base 2.
+        working = 1 < numero_nodos; //Si solo hay un proceso (el 0), etonces se terminó de pegar todas las sublista, por lo tanto se sale del bucle. 
+      }
+    }
+
+    if(DEBUG){
+      std::cout << "I AM OUT OF THE LOOP!" <<std::endl;
+    }
+  
+    if(my_rank == 0 || my_rank == r){
+       free(lista);
+    }
+
+    if(my_rank == 0){
+
+      if(DEBUG){
+        //DESPLEGAR LA LISTA YA ORDENADA
+        std::stringstream sstm;
+        sstm << "LISTA FINAL ORDENDA: ";
         for(int x = 0; x < tamanio_lista; x++){
-          ssout << lista_unida[x] << " ";
-        }*/
-        std::cout << ssout.str();
-        
-
+          sstm <<lista_unida[x] << " , ";
+        }
+        std::cout << sstm.str();
       }
 
-      //Para todos los impares. 
-      pro_id = (pro_id +1 )/ 2;
-      numero_nodos = numero_nodos % 2 == 0 ? numero_nodos/2 :  (numero_nodos+1 ) / 2;
-      distance <<= 1;
-      working = 1 < numero_nodos;
-
+      
+      std::cout << "\nEl valor de p es: " << p << "\nEl valor de n es: " << n << "\nEl valor de m es: " << m;
+      char mostrar;
+      std::cout << "\nDesea mostrar la lista ordenada (Y/N): ";
+      std::cin >> mostrar;
+      if(mostrar == 'Y') 
+        mostrarLista(lista_unida,tamanio_lista);
+      std::cout << "\nNUMERO DE VECES QUE APARECE CADA NUMERO";
+      std::cout << "\n"; 
+      cantidadValores(lista_unida,m,tamanio_lista);
       
     }
-   
 
-      
-    
-  }
-
-  std::cout << "I AM OUT!" <<std::endl;
-  
-  if(my_rank == 0 || my_rank == r){
-	   free(lista);
-  }
-
-  if(my_rank == 0){
-
-    /*
-    std::stringstream sstm;
-    sstm << ">>>";
-    
-    for(int x = 0; x < tamanio_lista; x++){
-      sstm <<lista_unida[x] << " , ";
-    }
-    //result = sstm.str();
-    std::cout << sstm.str();*/
-
-    
-    std::cout << "\nEl valor de p es: " << p << "\nEl valor de n es: " << n << "\nEl valor de m es: " << m;
-    char mostrar;
-    std::cout << "\nDesea mostrar la lista ordenada (Y/N): ";
-    std::cin >> mostrar;
-    if(mostrar == 'Y') 
-	    mostrarLista(lista_unida,tamanio_lista);
-    std::cout << "\nNUMERO DE VECES QUE APARECE CADA NUMERO";
-    std::cout << "\n"; 
-    cantidadValores(lista_unida,m,tamanio_lista);
-    
-  }
-
- 
-  
     free(lista_unida);
-
-
-  MPI_Finalize();
-   return 0;
+    MPI_Finalize();
+    return 0;
 }
 
 void Genera_vector(int lista[], int n,  int m)
