@@ -308,7 +308,9 @@ int main( int argc, char *argv[] )
   }
 
   if(my_rank == 0){
-    /*std::stringstream sstm;
+
+    /*
+    std::stringstream sstm;
     sstm << ">>>";
     
     for(int x = 0; x < tamanio_lista; x++){
@@ -316,6 +318,8 @@ int main( int argc, char *argv[] )
     }
     //result = sstm.str();
     std::cout << sstm.str();*/
+
+    
     std::cout << "\nEl valor de p es: " << p << "\nEl valor de n es: " << n << "\nEl valor de m es: " << m;
     char mostrar;
     std::cout << "\nDesea mostrar la lista ordenada (Y/N): ";
